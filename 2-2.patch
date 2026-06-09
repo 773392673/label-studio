@@ -1,0 +1,13 @@
+diff --git a/web/apps/labelstudio/src/pages/Settings/StorageSettings/hooks/useStorageCard.tsx b/web/apps/labelstudio/src/pages/Settings/StorageSettings/hooks/useStorageCard.tsx
+index 4891ae47c..b62c72e1e 100644
+--- a/web/apps/labelstudio/src/pages/Settings/StorageSettings/hooks/useStorageCard.tsx
++++ b/web/apps/labelstudio/src/pages/Settings/StorageSettings/hooks/useStorageCard.tsx
+@@ -67,7 +67,7 @@ export function useStorageCard(target: "import" | "export", projectId?: number)
+     [storageTypes.storageTypesLoading, storages.storagesLoading],
+   );
+   const loaded = useMemo(
+-    () => storageTypes.storageTypesLoaded || storages.storagesLoaded,
++    () => storageTypes.storageTypesLoaded && storages.storagesLoaded,
+     [storageTypes.storageTypesLoaded, storages.storagesLoaded],
+   );
+ 
