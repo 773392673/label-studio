@@ -1,0 +1,25 @@
+<div class="deployment-info-banner">
+  <span class="deployment-info-item" title="Running mode">
+    <svg class="deployment-info-icon" width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M7 1C7 1 2.5 3.5 2.5 7C2.5 10.5 7 13 7 13C7 13 11.5 10.5 11.5 7C11.5 3.5 7 1 7 1Z" stroke="currentColor" stroke-width="1.2" fill="none"/>
+      <circle cx="7" cy="7" r="1.8" fill="currentColor"/>
+    </svg>
+    {{ deployment_info.mode }}
+  </span>
+  <span class="deployment-info-separator">|</span>
+  <span class="deployment-info-item" title="Edition &amp; Version">
+    <svg class="deployment-info-icon" width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M4 3.5H10M4 5.5H8M4 7.5H10M2 1.5H12C12.2761 1.5 12.5 1.72386 12.5 2V12C12.5 12.2761 12.2761 12.5 12 12.5H2C1.72386 12.5 1.5 12.2761 1.5 12V2C1.5 1.72386 1.72386 1.5 2 1.5Z" stroke="currentColor" stroke-width="1.2" fill="none"/>
+    </svg>
+    {{ deployment_info.edition }} v{{ deployment_info.version }}
+  </span>
+  {% if deployment_info.hostname %}
+  <span class="deployment-info-separator">|</span>
+  <span class="deployment-info-item" title="Access URL">
+    <svg class="deployment-info-icon" width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M5.5 3.5H3.5C3.23478 3.5 2.98043 3.60536 2.79289 3.79289C2.60536 3.98043 2.5 4.23478 2.5 4.5V10.5C2.5 10.7652 2.60536 11.0196 2.79289 11.2071C2.98043 11.3946 3.23478 11.5 3.5 11.5H9.5C9.76522 11.5 10.0196 11.3946 10.2071 11.2071C10.3946 11.0196 10.5 10.7652 10.5 10.5V8.5M8.5 2.5H11.5M11.5 2.5V5.5M11.5 2.5L6.5 7.5" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    {{ deployment_info.hostname }}
+  </span>
+  {% endif %}
+</div>

@@ -376,3 +376,34 @@ label {
 .text-wrapper a:hover {
   text-decoration: none;
 }
+
+.deployment-info-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 1.5rem;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: var(--color-neutral-background, #f5f5f0);
+  border: 1px solid var(--color-neutral-border, #e0e0d8);
+  font-size: 0.75rem;
+  color: var(--color-neutral-secondary-content, #7a7a6a);
+  white-space: nowrap;
+  flex-wrap: wrap;
+}
+
+.deployment-info-banner .deployment-info-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.deployment-info-banner .deployment-info-icon {
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+
+.deployment-info-banner .deployment-info-separator {
+  color: var(--color-neutral-border, #d0d0c8);
+}

@@ -1,3 +1,7 @@
 {% extends 'base.html' %}
 {% load i18n %}
 {% load static %}
+
+{% block deployment_banner %}
+  {% include 'deployment_info_banner.html' %}
+{% endblock %}
