@@ -1,0 +1,135 @@
+diff --git a/label_studio/core/context_processors.py b/label_studio/core/context_processors.py
+index 93c466d29..5cbe1a5e3 100644
+--- a/label_studio/core/context_processors.py
++++ b/label_studio/core/context_processors.py
+@@ -1,10 +1,21 @@
+ """This file and its contents are licensed under the Apache License 2.0. Please see the included NOTICE for copyright information and LICENSE for a copy of the license."""
+ 
++import os
++
+ from core.feature_flags import all_flags
+ from core.utils.common import collect_versions
+ from django.conf import settings as django_settings
+ 
+ 
++def _is_docker():
++    path = '/proc/self/cgroup'
++    return (
++        os.path.exists('/.dockerenv')
++        or os.path.isfile(path)
++        and any('docker' in line for line in open(path, encoding='utf-8'))
++    )
++
++
+ def sentry_fe(request):
+     # return the value you want as a dictionary, you may add multiple values in there
+     return {'SENTRY_FE': django_settings.SENTRY_FE}
+@@ -32,4 +43,10 @@ def settings(request):
+     if hasattr(request, 'user'):
+         feature_flags = all_flags(request.user)
+ 
+-    return {'settings': django_settings, 'versions': versions, 'feature_flags': feature_flags}
++    deployment_info = {
++        'mode': 'Docker' if _is_docker() else 'Local',
++        'version': versions.get('release', 'unknown'),
++        'access_url': django_settings.HOSTNAME or (request.get_host() if hasattr(request, 'get_host') else ''),
++    }
++
++    return {'settings': django_settings, 'versions': versions, 'feature_flags': feature_flags, 'deployment_info': deployment_info}
+diff --git a/label_studio/core/static/css/login.css b/label_studio/core/static/css/login.css
+index fe67021fe..e6c2ab6d6 100644
+--- a/label_studio/core/static/css/login.css
++++ b/label_studio/core/static/css/login.css
+@@ -376,3 +376,37 @@ label {
+ .text-wrapper a:hover {
+   text-decoration: none;
+ }
++
++.deployment-info {
++  display: flex;
++  align-items: center;
++  justify-content: center;
++  gap: 8px;
++  margin-top: 1.5rem;
++  padding: 0.5rem 1rem;
++  font-size: 0.75rem;
++  color: var(--color-neutral-content-subtle, #888);
++  background: var(--color-neutral-surface-dimmed, rgba(0, 0, 0, 0.03));
++  border-radius: 6px;
++  border: 1px solid var(--color-neutral-border, #e0e0e0);
++}
++
++.deployment-info-item {
++  display: inline-flex;
++  align-items: center;
++  gap: 4px;
++}
++
++.deployment-info-label {
++  font-weight: 500;
++  color: var(--color-neutral-content-subtle, #999);
++}
++
++.deployment-info-value {
++  font-weight: 400;
++  color: var(--color-neutral-content, #555);
++}
++
++.deployment-info-divider {
++  color: var(--color-neutral-border, #ccc);
++}
+diff --git a/label_studio/users/templates/users/new-ui/user_login.html b/label_studio/users/templates/users/new-ui/user_login.html
+index 3541d48df..11730ad1e 100644
+--- a/label_studio/users/templates/users/new-ui/user_login.html
++++ b/label_studio/users/templates/users/new-ui/user_login.html
+@@ -45,4 +45,22 @@
+     <a href="{% url 'user-signup' %}{% querystring %}">Sign up</a>
+   </div>
+   {% endif %}
++  <div class="deployment-info">
++    <span class="deployment-info-item">
++      <span class="deployment-info-label">Mode:</span>
++      <span class="deployment-info-value">{{ deployment_info.mode }}</span>
++    </span>
++    <span class="deployment-info-divider">|</span>
++    <span class="deployment-info-item">
++      <span class="deployment-info-label">Version:</span>
++      <span class="deployment-info-value">{{ deployment_info.version }}</span>
++    </span>
++    {% if deployment_info.access_url %}
++    <span class="deployment-info-divider">|</span>
++    <span class="deployment-info-item">
++      <span class="deployment-info-label">Access:</span>
++      <span class="deployment-info-value">{{ deployment_info.access_url }}</span>
++    </span>
++    {% endif %}
++  </div>
+ {% endblock %}
+diff --git a/label_studio/users/templates/users/user_login.html b/label_studio/users/templates/users/user_login.html
+index 89ff88180..17badb405 100644
+--- a/label_studio/users/templates/users/user_login.html
++++ b/label_studio/users/templates/users/user_login.html
+@@ -18,5 +18,23 @@
+     </p>
+     <p><button type="submit" aria-label="Log In" class="lsf-button-ls lsf-button-ls_look_primary">Log in</button></p>
+   </form>
++  <div class="deployment-info">
++    <span class="deployment-info-item">
++      <span class="deployment-info-label">Mode:</span>
++      <span class="deployment-info-value">{{ deployment_info.mode }}</span>
++    </span>
++    <span class="deployment-info-divider">|</span>
++    <span class="deployment-info-item">
++      <span class="deployment-info-label">Version:</span>
++      <span class="deployment-info-value">{{ deployment_info.version }}</span>
++    </span>
++    {% if deployment_info.access_url %}
++    <span class="deployment-info-divider">|</span>
++    <span class="deployment-info-item">
++      <span class="deployment-info-label">Access:</span>
++      <span class="deployment-info-value">{{ deployment_info.access_url }}</span>
++    </span>
++    {% endif %}
++  </div>
+ 
+ {% endblock %}

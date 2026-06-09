@@ -1,8 +1,19 @@
 """This file and its contents are licensed under the Apache License 2.0. Please see the included NOTICE for copyright information and LICENSE for a copy of the license."""
 
+import os
+
 from core.feature_flags import all_flags
 from core.utils.common import collect_versions
 from django.conf import settings as django_settings
+
+
+def _is_docker():
+    path = '/proc/self/cgroup'
+    return (
+        os.path.exists('/.dockerenv')
+        or os.path.isfile(path)
+        and any('docker' in line for line in open(path, encoding='utf-8'))
+    )
 
 
 def sentry_fe(request):
@@ -32,4 +43,10 @@ def settings(request):
     if hasattr(request, 'user'):
         feature_flags = all_flags(request.user)
 
-    return {'settings': django_settings, 'versions': versions, 'feature_flags': feature_flags}
+    deployment_info = {
+        'mode': 'Docker' if _is_docker() else 'Local',
+        'version': versions.get('release', 'unknown'),
+        'access_url': django_settings.HOSTNAME or (request.get_host() if hasattr(request, 'get_host') else ''),
+    }
+
+    return {'settings': django_settings, 'versions': versions, 'feature_flags': feature_flags, 'deployment_info': deployment_info}

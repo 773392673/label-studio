@@ -18,5 +18,23 @@
     </p>
     <p><button type="submit" aria-label="Log In" class="lsf-button-ls lsf-button-ls_look_primary">Log in</button></p>
   </form>
+  <div class="deployment-info">
+    <span class="deployment-info-item">
+      <span class="deployment-info-label">Mode:</span>
+      <span class="deployment-info-value">{{ deployment_info.mode }}</span>
+    </span>
+    <span class="deployment-info-divider">|</span>
+    <span class="deployment-info-item">
+      <span class="deployment-info-label">Version:</span>
+      <span class="deployment-info-value">{{ deployment_info.version }}</span>
+    </span>
+    {% if deployment_info.access_url %}
+    <span class="deployment-info-divider">|</span>
+    <span class="deployment-info-item">
+      <span class="deployment-info-label">Access:</span>
+      <span class="deployment-info-value">{{ deployment_info.access_url }}</span>
+    </span>
+    {% endif %}
+  </div>
 
 {% endblock %}

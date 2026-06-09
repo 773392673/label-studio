@@ -376,3 +376,37 @@ label {
 .text-wrapper a:hover {
   text-decoration: none;
 }
+
+.deployment-info {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 1.5rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.75rem;
+  color: var(--color-neutral-content-subtle, #888);
+  background: var(--color-neutral-surface-dimmed, rgba(0, 0, 0, 0.03));
+  border-radius: 6px;
+  border: 1px solid var(--color-neutral-border, #e0e0e0);
+}
+
+.deployment-info-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.deployment-info-label {
+  font-weight: 500;
+  color: var(--color-neutral-content-subtle, #999);
+}
+
+.deployment-info-value {
+  font-weight: 400;
+  color: var(--color-neutral-content, #555);
+}
+
+.deployment-info-divider {
+  color: var(--color-neutral-border, #ccc);
+}
