@@ -1,6 +1,7 @@
 """This file and its contents are licensed under the Apache License 2.0. Please see the included NOTICE for copyright information and LICENSE for a copy of the license."""
 
 import logging
+import os
 from urllib.parse import quote
 
 from core.feature_flags import flag_set
@@ -136,9 +137,25 @@ def user_login(request):
             return redirect(next_page)
 
     if flag_set('fflag_feat_front_lsdv_e_297_increase_oss_to_enterprise_adoption_short'):
-        return render(request, 'users/new-ui/user_login.html', {'form': form, 'next': quote(next_page)})
+        return render(
+            request,
+            'users/new-ui/user_login.html',
+            {
+                'form': form,
+                'next': quote(next_page),
+                'is_docker': os.path.exists('/.dockerenv'),
+            },
+        )
 
-    return render(request, 'users/user_login.html', {'form': form, 'next': quote(next_page)})
+    return render(
+        request,
+        'users/user_login.html',
+        {
+            'form': form,
+            'next': quote(next_page),
+            'is_docker': os.path.exists('/.dockerenv'),
+        },
+    )
 
 
 @login_required

@@ -1,0 +1,90 @@
+diff --git a/label_studio/users/templates/users/new-ui/user_login.html b/label_studio/users/templates/users/new-ui/user_login.html
+index 3541d48df..d45feacb5 100644
+--- a/label_studio/users/templates/users/new-ui/user_login.html
++++ b/label_studio/users/templates/users/new-ui/user_login.html
+@@ -45,4 +45,20 @@
+     <a href="{% url 'user-signup' %}{% querystring %}">Sign up</a>
+   </div>
+   {% endif %}
++
++  <div class="deployment-info" style="margin-top: 32px; padding: 16px; border: 1px solid var(--sand-300, #E5E5E5); border-radius: 8px; background: var(--sand-100, #FAFAFA); font-size: 12px; color: var(--sand-600, #666); line-height: 1.5;">
++    <div style="font-weight: 600; margin-bottom: 8px; color: var(--sand-800, #333);">Deployment Information</div>
++    <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
++      <span>Running Mode:</span>
++      <span style="font-weight: 500;">{% if is_docker %}Docker{% else %}Local{% endif %}</span>
++    </div>
++    <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
++      <span>Version:</span>
++      <span style="font-weight: 500;">{{ versions.release|default:"Unknown" }}</span>
++    </div>
++    <div style="display: flex; justify-content: space-between;">
++      <span>Access URL:</span>
++      <span style="font-weight: 500;">{{ settings.HOSTNAME|default:request.get_host }}</span>
++    </div>
++  </div>
+ {% endblock %}
+diff --git a/label_studio/users/templates/users/user_login.html b/label_studio/users/templates/users/user_login.html
+index 89ff88180..974846a4f 100644
+--- a/label_studio/users/templates/users/user_login.html
++++ b/label_studio/users/templates/users/user_login.html
+@@ -19,4 +19,20 @@
+     <p><button type="submit" aria-label="Log In" class="lsf-button-ls lsf-button-ls_look_primary">Log in</button></p>
+   </form>
+ 
++  <div class="deployment-info" style="margin-top: 32px; padding: 16px; border: 1px solid #E5E5E5; border-radius: 8px; background: #FAFAFA; font-size: 12px; color: #666; line-height: 1.5;">
++    <div style="font-weight: 600; margin-bottom: 8px; color: #333;">Deployment Information</div>
++    <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
++      <span>Running Mode:</span>
++      <span style="font-weight: 500;">{% if is_docker %}Docker{% else %}Local{% endif %}</span>
++    </div>
++    <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
++      <span>Version:</span>
++      <span style="font-weight: 500;">{{ versions.release|default:"Unknown" }}</span>
++    </div>
++    <div style="display: flex; justify-content: space-between;">
++      <span>Access URL:</span>
++      <span style="font-weight: 500;">{{ settings.HOSTNAME|default:request.get_host }}</span>
++    </div>
++  </div>
++
+ {% endblock %}
+diff --git a/label_studio/users/views.py b/label_studio/users/views.py
+index 1cf605262..72c13d352 100644
+--- a/label_studio/users/views.py
++++ b/label_studio/users/views.py
+@@ -1,6 +1,7 @@
+ """This file and its contents are licensed under the Apache License 2.0. Please see the included NOTICE for copyright information and LICENSE for a copy of the license."""
+ 
+ import logging
++import os
+ from urllib.parse import quote
+ 
+ from core.feature_flags import flag_set
+@@ -136,9 +137,25 @@ def user_login(request):
+             return redirect(next_page)
+ 
+     if flag_set('fflag_feat_front_lsdv_e_297_increase_oss_to_enterprise_adoption_short'):
+-        return render(request, 'users/new-ui/user_login.html', {'form': form, 'next': quote(next_page)})
++        return render(
++            request,
++            'users/new-ui/user_login.html',
++            {
++                'form': form,
++                'next': quote(next_page),
++                'is_docker': os.path.exists('/.dockerenv'),
++            },
++        )
+ 
+-    return render(request, 'users/user_login.html', {'form': form, 'next': quote(next_page)})
++    return render(
++        request,
++        'users/user_login.html',
++        {
++            'form': form,
++            'next': quote(next_page),
++            'is_docker': os.path.exists('/.dockerenv'),
++        },
++    )
+ 
+ 
+ @login_required

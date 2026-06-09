@@ -19,4 +19,20 @@
     <p><button type="submit" aria-label="Log In" class="lsf-button-ls lsf-button-ls_look_primary">Log in</button></p>
   </form>
 
+  <div class="deployment-info" style="margin-top: 32px; padding: 16px; border: 1px solid #E5E5E5; border-radius: 8px; background: #FAFAFA; font-size: 12px; color: #666; line-height: 1.5;">
+    <div style="font-weight: 600; margin-bottom: 8px; color: #333;">Deployment Information</div>
+    <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+      <span>Running Mode:</span>
+      <span style="font-weight: 500;">{% if is_docker %}Docker{% else %}Local{% endif %}</span>
+    </div>
+    <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+      <span>Version:</span>
+      <span style="font-weight: 500;">{{ versions.release|default:"Unknown" }}</span>
+    </div>
+    <div style="display: flex; justify-content: space-between;">
+      <span>Access URL:</span>
+      <span style="font-weight: 500;">{{ settings.HOSTNAME|default:request.get_host }}</span>
+    </div>
+  </div>
+
 {% endblock %}
