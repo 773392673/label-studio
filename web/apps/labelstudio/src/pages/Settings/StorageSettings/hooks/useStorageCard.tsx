@@ -67,7 +67,7 @@ export function useStorageCard(target: "import" | "export", projectId?: number) 
     [storageTypes.storageTypesLoading, storages.storagesLoading],
   );
   const loaded = useMemo(
-    () => storageTypes.storageTypesLoaded || storages.storagesLoaded,
+    () => storageTypes.storageTypesLoaded && storages.storagesLoaded,
     [storageTypes.storageTypesLoaded, storages.storagesLoaded],
   );
 

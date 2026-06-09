@@ -12,7 +12,7 @@ import {
   Tooltip,
   Typography,
 } from "@humansignal/ui";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useHistory, useLocation } from "react-router-dom";
 import { useUpdatePageTitle, createTitleFromSegments } from "@humansignal/core";
 import { useProject } from "../../../providers/ProjectProvider";
@@ -28,6 +28,7 @@ export const StorageSettings = () => {
   const location = useLocation();
   const sourceStorageRef = useRef();
   const targetStorageRef = useRef();
+  const autoOpenHandledRef = useRef(false);
 
   useUpdatePageTitle(createTitleFromSegments([project?.title, "Cloud Storage Settings"]));
 
@@ -35,24 +36,37 @@ export const StorageSettings = () => {
   const sourceStorage = useStorageCard("", project?.id);
   const targetStorage = useStorageCard("export", project?.id);
 
-  // Check if any storages exist
-  const hasAnyStorages = sourceStorage.storages?.length > 0 || targetStorage.storages?.length > 0;
+  // Check if page-level data needed for first render is fully ready
+  const hasAnyStorages = useMemo(
+    () => sourceStorage.storages?.length > 0 || targetStorage.storages?.length > 0,
+    [sourceStorage.storages, targetStorage.storages],
+  );
   const isLoading = sourceStorage.loading || targetStorage.loading;
   const isLoaded = sourceStorage.loaded && targetStorage.loaded;
+  const isPageReady = isLoaded && !isLoading;
 
-  // Handle auto-open query parameter
+  // Handle auto-open query parameter only after page data and refs are stable
   useEffect(() => {
     const urlParams = new URLSearchParams(location.search);
-    if (urlParams.get("open") === "source" && isLoaded) {
-      // Auto-trigger "Add Source Storage" modal
-      setTimeout(() => {
-        sourceStorageRef.current?.openAddModal();
-      }, 100); // Small delay to ensure component is mounted
+    const shouldAutoOpenSource = urlParams.get("open") === "source";
 
-      // Clean URL by removing the query parameter
-      history.replace(location.pathname);
+    if (!shouldAutoOpenSource) {
+      autoOpenHandledRef.current = false;
+      return;
     }
-  }, [location, history, isLoaded]);
+
+    if (!isPageReady || autoOpenHandledRef.current || !sourceStorageRef.current?.openAddModal) {
+      return;
+    }
+
+    autoOpenHandledRef.current = true;
+
+    setTimeout(() => {
+      sourceStorageRef.current?.openAddModal();
+    }, 100);
+
+    history.replace(location.pathname);
+  }, [history, isPageReady, location.pathname, location.search]);
 
   return (
     <section className="max-w-[680px]">
@@ -66,14 +80,14 @@ export const StorageSettings = () => {
         </Typography>
       )}
 
-      {isLoading && !isLoaded && (
+      {!isPageReady && (
         <div className="flex items-center justify-center h-[50rem]">
           <Spinner />
         </div>
       )}
 
       {/* Always render StorageSet components (hidden when showing EmptyState) so refs are populated */}
-      <div className={!hasAnyStorages && isLoaded ? "hidden" : ""}>
+      <div className={!hasAnyStorages && isPageReady ? "hidden" : ""}>
         <div className="grid grid-cols-2 gap-8">
           <StorageSet
             ref={sourceStorageRef}
@@ -105,7 +119,7 @@ export const StorageSettings = () => {
       </div>
 
       {/* Show EmptyState when no storages exist */}
-      {!hasAnyStorages && isLoaded && !isLoading && (
+      {!hasAnyStorages && isPageReady && (
         <SimpleCard title="" className="bg-primary-background border-primary-border-subtler p-base">
           <EmptyState
             size="medium"
