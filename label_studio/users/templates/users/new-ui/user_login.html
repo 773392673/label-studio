@@ -38,6 +38,13 @@
       </div>
       <button type="submit" aria-label="Log In" class="login-button">Log in</button>
     </form>
+    <div style="margin-top: 1rem; padding: 1rem; border-radius: 12px; background: rgba(255, 117, 87, 0.08); border: 1px solid rgba(255, 117, 87, 0.18); font-size: 0.875rem; line-height: 1.5;">
+      <div style="font-weight: 600; margin-bottom: 0.5rem;">部署信息</div>
+      <div><strong>运行模式：</strong>{{ deployment_info.mode }}</div>
+      <div><strong>应用版本：</strong>{{ versions.package.short_version }}</div>
+      <div style="margin-top: 0.5rem;"><strong>访问入口：</strong>{{ deployment_info.entrypoint }}</div>
+      <div><strong>访问说明：</strong>{{ deployment_info.access_hint }}</div>
+    </div>
   </div>
   {% if not settings.DISABLE_SIGNUP_WITHOUT_LINK %}
   <div class="text-wrapper">

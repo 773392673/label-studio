@@ -1,6 +1,7 @@
 """This file and its contents are licensed under the Apache License 2.0. Please see the included NOTICE for copyright information and LICENSE for a copy of the license."""
 
 import logging
+import os
 from urllib.parse import quote
 
 from core.feature_flags import flag_set
@@ -19,6 +20,34 @@ from users import forms
 from users.functions import login, proceed_registration
 
 logger = logging.getLogger()
+
+
+def _is_running_in_docker():
+    cgroup_path = '/proc/self/cgroup'
+
+    if os.path.exists('/.dockerenv'):
+        return True
+
+    if not os.path.isfile(cgroup_path):
+        return False
+
+    with open(cgroup_path, encoding='utf-8') as cgroup:
+        return any('docker' in line for line in cgroup)
+
+
+def _get_deployment_info(request):
+    is_docker = _is_running_in_docker()
+    entrypoint = request.build_absolute_uri('/')
+
+    return {
+        'mode': 'Docker' if is_docker else 'Local',
+        'entrypoint': entrypoint,
+        'access_hint': (
+            '通过当前容器映射出来的浏览器地址访问；如配置了反向代理，请以当前访问地址为准。'
+            if is_docker
+            else '通过本机启动的浏览器地址访问；如调整了 host 或端口，请以当前访问地址为准。'
+        ),
+    }
 
 
 @login_required
@@ -135,10 +164,12 @@ def user_login(request):
             user.save(update_fields=['active_organization'])
             return redirect(next_page)
 
-    if flag_set('fflag_feat_front_lsdv_e_297_increase_oss_to_enterprise_adoption_short'):
-        return render(request, 'users/new-ui/user_login.html', {'form': form, 'next': quote(next_page)})
+    context = {'form': form, 'next': quote(next_page), 'deployment_info': _get_deployment_info(request)}
 
-    return render(request, 'users/user_login.html', {'form': form, 'next': quote(next_page)})
+    if flag_set('fflag_feat_front_lsdv_e_297_increase_oss_to_enterprise_adoption_short'):
+        return render(request, 'users/new-ui/user_login.html', context)
+
+    return render(request, 'users/user_login.html', context)
 
 
 @login_required
