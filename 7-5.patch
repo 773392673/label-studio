@@ -1,0 +1,76 @@
+diff --git a/label_studio/tests/conftest.py b/label_studio/tests/conftest.py
+index 861886938..546db94cc 100644
+--- a/label_studio/tests/conftest.py
++++ b/label_studio/tests/conftest.py
+@@ -19,7 +19,10 @@ import ujson as json
+ from botocore.exceptions import ClientError
+ from django.conf import settings
+ from freezegun import freeze_time
+-from moto import mock_s3
++try:
++    from moto import mock_s3
++except ImportError:
++    from moto import mock_aws as mock_s3
+ from organizations.models import Organization
+ from projects.models import Project
+ from tasks.models import Task
+diff --git a/label_studio/tests/data_import/test_persistent_storage_data.py b/label_studio/tests/data_import/test_persistent_storage_data.py
+index 9c8954f75..16a5e3828 100644
+--- a/label_studio/tests/data_import/test_persistent_storage_data.py
++++ b/label_studio/tests/data_import/test_persistent_storage_data.py
+@@ -334,3 +334,55 @@ class TestDownloadStorageData:
+         view.get(request)
+ 
+         mock_unquote.assert_called_once_with(encoded_filepath)
++
++    def test_empty_filepath_returns_403(self, api_factory, user, view):
++        """Test that empty string filepath (?filepath=) returns 403"""
++        request = api_factory.get('/storage-data/uploaded/', {'filepath': ''})
++        request.user = user
++
++        response = view.get(request)
++        assert response.status_code == status.HTTP_403_FORBIDDEN
++
++    @mock.patch('data_import.api.User.objects.filter')
++    def test_avatar_same_org_access_grants_file(self, mock_filter, api_factory, user, view):
++        """Test that avatar file is accessible when both users belong to the same organization"""
++        mock_avatar_user = Mock()
++        mock_avatar_file = Mock()
++        mock_avatar_file.open = Mock(return_value=Mock())
++        mock_avatar_user.avatar = mock_avatar_file
++        mock_filter.return_value.first.return_value = mock_avatar_user
++
++        user.active_organization.has_user = Mock(return_value=True)
++
++        request = api_factory.get('/storage-data/uploaded/', {'filepath': f'{settings.AVATAR_PATH}/avatar.jpg'})
++        request.user = user
++
++        with mock.patch('data_import.api.settings.USE_NGINX_FOR_UPLOADS', False), \
++             mock.patch('data_import.api.RangedFileResponse') as mock_ranged:
++            mock_response_instance = Mock()
++            mock_response_instance.__setitem__ = Mock()
++            mock_ranged.return_value = mock_response_instance
++
++            response = view.get(request)
++
++            user.active_organization.has_user.assert_called_once_with(mock_avatar_user)
++            assert response == mock_response_instance
++            mock_ranged.assert_called_once()
++
++    @mock.patch('data_import.api.FileUpload.objects.filter')
++    @mock.patch('data_import.api.settings.USE_NGINX_FOR_UPLOADS', True)
++    def test_nginx_with_filesystem_storage_returns_400(self, mock_filter, api_factory, user, view, mock_file_upload):
++        """Test that NGINX mode with FileSystemStorage returns 400 error"""
++        from django.core.files.storage import FileSystemStorage as _FileSystemStorage
++
++        mock_file_upload.file.storage = Mock(spec=_FileSystemStorage)
++        mock_filter.return_value.last.return_value = mock_file_upload
++
++        request = api_factory.get('/storage-data/uploaded/', {'filepath': f'{settings.UPLOAD_DIR}/test.pdf'})
++        request.user = user
++
++        response = view.get(request)
++
++        assert response.status_code == status.HTTP_400_BAD_REQUEST
++        assert 'detail' in response.data
++        assert 'FileSystemStorage' in response.data['detail']
