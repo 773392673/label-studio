@@ -989,7 +989,7 @@ class DownloadStorageData(APIView):
                 file_obj = file_upload.file
         elif filepath.startswith(settings.AVATAR_PATH):
             user = User.objects.filter(avatar=filepath).first()
-            if user is not None and request.user.active_organization.has_user(user):
+            if user is not None and request.user.active_organization and request.user.active_organization.has_user(user):
                 file_obj = user.avatar
 
         if file_obj is None:

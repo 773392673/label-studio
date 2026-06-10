@@ -5,6 +5,7 @@ import pytest
 from data_import.api import DownloadStorageData
 from data_import.models import FileUpload
 from django.conf import settings
+from django.core.files.storage import FileSystemStorage
 from django.http import HttpResponse
 from organizations.models import Organization
 from rest_framework import status
@@ -334,3 +335,60 @@ class TestDownloadStorageData:
         view.get(request)
 
         mock_unquote.assert_called_once_with(encoded_filepath)
+
+    def test_empty_filepath_string_returns_403(self, api_factory, user, view):
+        request = api_factory.get('/storage-data/uploaded/', {'filepath': ''})
+        request.user = user
+
+        response = view.get(request)
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    @mock.patch('data_import.api.FileUpload.objects.filter')
+    @mock.patch('data_import.api.settings.USE_NGINX_FOR_UPLOADS', True)
+    def test_upload_file_nginx_with_local_filesystem_storage_returns_400(
+        self, mock_filter, api_factory, user, view, mock_file_upload
+    ):
+        mock_file_upload.file.storage = FileSystemStorage()
+        mock_filter.return_value.last.return_value = mock_file_upload
+
+        request = api_factory.get('/storage-data/uploaded/', {'filepath': f'{settings.UPLOAD_DIR}/test.pdf'})
+        request.user = user
+
+        response = view.get(request)
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert 'FileSystemStorage' in response.data['detail']
+
+    @mock.patch('data_import.api.User.objects.filter')
+    @mock.patch('data_import.api.settings.USE_NGINX_FOR_UPLOADS', True)
+    def test_avatar_file_nginx_with_local_filesystem_storage_returns_400(
+        self, mock_filter, api_factory, user, view
+    ):
+        mock_avatar_user = Mock()
+        mock_avatar_file = Mock()
+        mock_avatar_file.storage = FileSystemStorage()
+        mock_avatar_file.name = 'avatar.jpg'
+        mock_avatar_user.avatar = mock_avatar_file
+        mock_filter.return_value.first.return_value = mock_avatar_user
+
+        user.active_organization.has_user = Mock(return_value=True)
+
+        request = api_factory.get('/storage-data/uploaded/', {'filepath': f'{settings.AVATAR_PATH}/avatar.jpg'})
+        request.user = user
+
+        response = view.get(request)
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert 'FileSystemStorage' in response.data['detail']
+
+    @mock.patch('data_import.api.User.objects.filter')
+    def test_avatar_user_org_is_none_returns_403(self, mock_filter, api_factory, user, view):
+        mock_avatar_user = Mock()
+        mock_avatar_user.avatar = Mock()
+        mock_filter.return_value.first.return_value = mock_avatar_user
+
+        user.active_organization = None
+
+        request = api_factory.get('/storage-data/uploaded/', {'filepath': f'{settings.AVATAR_PATH}/avatar.jpg'})
+        request.user = user
+
+        response = view.get(request)
+        assert response.status_code == status.HTTP_403_FORBIDDEN
