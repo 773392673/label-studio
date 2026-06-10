@@ -10,6 +10,49 @@
     }
   }
 
+  &__latest-export {
+    margin: 8px 0 16px;
+    padding: 14px 16px;
+    border-radius: 6px;
+    border: 1px solid var(--color-neutral-border-subtler);
+    background-color: var(--color-neutral-surface-active);
+  }
+
+  &__latest-export-label {
+    margin-bottom: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-neutral-content-subtle);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  &__latest-export-content {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 14px;
+    color: var(--color-neutral-content);
+    line-height: 1.5;
+
+    & a {
+      color: var(--color-primary-content);
+      text-decoration: none;
+      border-bottom: 1px solid transparent;
+      transition: border-color 0.2s;
+
+      &:hover {
+        border-bottom-color: var(--color-primary-content);
+      }
+    }
+  }
+
+  &__latest-export-name {
+    font-size: 14px;
+    font-weight: 500;
+    word-break: break-word;
+  }
+
   &__footer {
     margin: 16px -40px -32px;
     padding: 20px 32px;

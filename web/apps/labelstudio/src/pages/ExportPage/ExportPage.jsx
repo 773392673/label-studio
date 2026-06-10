@@ -18,18 +18,11 @@ import { cn } from "../../utils/bem";
 import { isDefined, copyText } from "../../utils/helpers";
 import "./ExportPage.prefix.css";
 
-// Community Edition exports run synchronously in a single HTTP request.
-// Large exports can exceed typical proxy timeouts, so we warn early and link to alternatives.
 const LARGE_EXPORT_TASK_THRESHOLD = 1000;
 const EXPORT_TIMEOUT_DOCS_URL = "https://labelstud.io/guide/export.html#Export-timeout-in-Community-Edition";
 const EXPORT_CONSOLE_DOCS_URL = "https://labelstud.io/guide/export.html#Export-using-console-command";
 const EXPORT_SNAPSHOT_SDK_URL = "https://api.labelstud.io/api-reference/api-reference/projects/exports/create";
 const ENTERPRISE_URL = "https://docs.humansignal.com/guide/label_studio_compare";
-
-// const formats = {
-//   json: 'JSON',
-//   csv: 'CSV',
-// };
 
 const downloadFile = (blob, filename) => {
   const link = document.createElement("a");
@@ -39,9 +32,14 @@ const downloadFile = (blob, filename) => {
   link.click();
 };
 
-const wait = () => new Promise((resolve) => setTimeout(resolve, 5000));
-
 const isTimeoutLikeStatus = (status) => status === 408 || status === 502 || status === 504;
+
+const getExportFileName = (exportFile) => {
+  const url = exportFile?.url ?? "";
+  const fileName = url.split("/").pop();
+
+  return decodeURIComponent(fileName || exportFile?.name || "");
+};
 
 export const ExportPage = () => {
   const history = useHistory();
@@ -57,8 +55,29 @@ export const ExportPage = () => {
   const [projectTaskNumber, setProjectTaskNumber] = useState(null);
   const [exportIssue, setExportIssue] = useState(null);
 
+  const latestExport = previousExports[0];
+
   /** @type {import('react').RefObject<Form>} */
   const form = useRef();
+
+  const loadPreviousExports = useCallback(
+    async ({ shouldUpdate } = {}) => {
+      if (!isDefined(pageParams.id)) return [];
+
+      const { export_files } = await api.callApi("previousExports", {
+        params: {
+          pk: pageParams.id,
+        },
+      });
+      const latestExports = export_files.slice(0, 1);
+
+      if (shouldUpdate?.() === false) return latestExports;
+
+      setPreviousExports(latestExports);
+      return latestExports;
+    },
+    [api, pageParams.id],
+  );
 
   const proceedExport = async () => {
     setExportIssue(null);
@@ -82,8 +101,6 @@ export const ExportPage = () => {
         },
       });
 
-      // The API proxy can return `null` for certain network errors; treat it as timeout-like
-      // and show actionable guidance instead of a generic error.
       if (!response) {
         setExportIssue("timeout");
         return;
@@ -93,6 +110,7 @@ export const ExportPage = () => {
         const blob = await response.blob();
 
         downloadFile(blob, response.headers.get("filename"));
+        void loadPreviousExports();
         return;
       }
 
@@ -113,15 +131,7 @@ export const ExportPage = () => {
     if (isDefined(pageParams.id)) {
       let cancelled = false;
 
-      api
-        .callApi("previousExports", {
-          params: {
-            pk: pageParams.id,
-          },
-        })
-        .then(({ export_files }) => {
-          if (!cancelled) setPreviousExports(export_files.slice(0, 1));
-        });
+      void loadPreviousExports({ shouldUpdate: () => !cancelled });
 
       api
         .callApi("exportFormats", {
@@ -135,8 +145,6 @@ export const ExportPage = () => {
           setCurrentFormat(formats[0]?.name);
         });
 
-      // Fetch project metadata to show a proactive warning for large exports.
-      // This is best-effort and should not trigger global error UI if it fails.
       api
         .callApi("project", {
           params: { pk: pageParams.id },
@@ -151,7 +159,7 @@ export const ExportPage = () => {
         cancelled = true;
       };
     }
-  }, [pageParams.id]);
+  }, [api, loadPreviousExports, pageParams.id]);
 
   return (
     <Modal
@@ -165,7 +173,6 @@ export const ExportPage = () => {
       style={{ width: 720 }}
       closeOnClickOutside={false}
       allowClose={!downloading}
-      // footer="Read more about supported export formats in the Documentation."
       visible
     >
       <div className={cn("export-page").toClassName()}>
@@ -181,6 +188,8 @@ export const ExportPage = () => {
         <Form ref={form}>
           <Input type="hidden" name="exportType" value={currentFormat} />
         </Form>
+
+        <LatestExportInfo exportFile={latestExport} />
 
         <div className={cn("export-page").elem("footer").toClassName()}>
           {downloadingMessage && (
@@ -203,6 +212,27 @@ export const ExportPage = () => {
         </div>
       </div>
     </Modal>
+  );
+};
+
+const LatestExportInfo = ({ exportFile }) => {
+  if (!exportFile?.url) return null;
+
+  const fileName = getExportFileName(exportFile);
+
+  return (
+    <div className={cn("export-page").elem("latest-export").toClassName()}>
+      <div className={cn("export-page").elem("latest-export-label").toClassName()}>Latest export</div>
+      <div className={cn("export-page").elem("latest-export-content").toClassName()}>
+        <span className={cn("export-page").elem("latest-export-name").toClassName()}>{fileName}</span>
+        <a className="no-go" href={exportFile.url} target="_blank" rel="noreferrer">
+          Open
+        </a>
+        <a className="no-go" href={exportFile.url} download={fileName}>
+          Download
+        </a>
+      </div>
+    </div>
   );
 };
 
@@ -230,7 +260,6 @@ const FormatInfo = ({ availableFormats, selected, onClick }) => {
 
               <Space size="small">
                 {format.tags?.map?.((tag, index) => {
-                  // Map tag text to badge variant
                   const tagLower = tag?.toLowerCase() || "";
                   let variant = "primary";
                   if (tagLower === "enterprise" || tagLower.includes("enterprise")) {
