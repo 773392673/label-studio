@@ -5,6 +5,7 @@ import pytest
 from data_import.api import DownloadStorageData
 from data_import.models import FileUpload
 from django.conf import settings
+from django.core.files.storage import FileSystemStorage
 from django.http import HttpResponse
 from organizations.models import Organization
 from rest_framework import status
@@ -334,3 +335,106 @@ class TestDownloadStorageData:
         view.get(request)
 
         mock_unquote.assert_called_once_with(encoded_filepath)
+
+    def test_empty_filepath_returns_404(self, api_factory, user, view):
+        """Test that an empty filepath query parameter is treated the same as a missing
+        parameter and returns 404.
+
+        ``request.GET.get('filepath')`` for an empty string value returns ``''`` rather
+        than ``None``. The view currently only guards against ``None``; this test pins the
+        intended behavior so any regression toward returning 403/200 for an empty
+        filepath is caught by the test suite.
+        """
+        request = api_factory.get('/storage-data/uploaded/', {'filepath': ''})
+        request.user = user
+
+        response = view.get(request)
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    @mock.patch('data_import.api.User.objects.filter')
+    @mock.patch('data_import.api.settings.USE_NGINX_FOR_UPLOADS', False)
+    @mock.patch('data_import.api.RangedFileResponse')
+    def test_avatar_organization_member_can_access(self, mock_ranged_response, mock_filter, api_factory, user, view):
+        """Test avatar access when the avatar owner is a real member of the requester's
+        organization.
+
+        Unlike ``test_avatar_file_direct_serving`` (which mocks ``has_user``), this test
+        exercises the real ``Organization.has_user`` membership check by actually adding
+        another user to ``user.active_organization``.
+        """
+        org = user.active_organization
+        avatar_owner = User.objects.create_user(email='avatar-owner@example.com', password='test123')
+        org.add_user(avatar_owner)
+        avatar_path = f'{settings.AVATAR_PATH}/owner.jpg'
+
+        fake_avatar_file = Mock()
+        fake_avatar_file.open = Mock(return_value=Mock())
+        avatar_owner.avatar = fake_avatar_file
+
+        mock_filter.return_value.first.return_value = avatar_owner
+
+        mock_ranged_instance = Mock()
+        mock_ranged_instance.__setitem__ = Mock()
+        mock_ranged_response.return_value = mock_ranged_instance
+
+        # Sanity check: real membership check returns True without mock overriding.
+        assert org.has_user(avatar_owner) is True
+
+        request = api_factory.get('/storage-data/uploaded/', {'filepath': avatar_path})
+        request.user = user
+
+        response = view.get(request)
+
+        assert response == mock_ranged_instance
+        mock_filter.assert_called_once()
+        mock_ranged_response.assert_called_once()
+
+    @mock.patch('data_import.api.User.objects.filter')
+    @mock.patch('data_import.api.settings.USE_NGINX_FOR_UPLOADS', True)
+    def test_nginx_mode_with_filesystem_storage_upload_returns_400(
+        self, mock_filter, api_factory, user, view, mock_file_upload
+    ):
+        """Test that enabling NGINX upload proxying while the file still lives on a
+        local ``FileSystemStorage`` produces the explicit HTTP 400 error branch rather
+        than silently trying to build an ``X-Accel-Redirect`` URL that FileSystemStorage
+        cannot generate via ``storage_url=True``.
+        """
+        mock_filter.return_value.last.return_value = mock_file_upload
+
+        local_storage = FileSystemStorage()
+        mock_file_upload.file.storage = local_storage
+
+        request = api_factory.get('/storage-data/uploaded/', {'filepath': f'{settings.UPLOAD_DIR}/test.pdf'})
+        request.user = user
+
+        response = view.get(request)
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        data = response.data
+        assert isinstance(data, dict)
+        assert 'detail' in data
+        assert 'NGINX' in data['detail']
+        assert 'FileSystemStorage' in data['detail']
+
+    @mock.patch('data_import.api.User.objects.filter')
+    @mock.patch('data_import.api.settings.USE_NGINX_FOR_UPLOADS', True)
+    def test_nginx_mode_with_filesystem_storage_avatar_returns_400(
+        self, mock_filter, api_factory, user, view
+    ):
+        """Test that NGINX mode + FileSystemStorage also returns 400 for avatar paths."""
+        mock_avatar_user = Mock()
+        mock_avatar_file = Mock()
+        mock_avatar_file.storage = FileSystemStorage()
+        mock_avatar_file.name = 'avatar.jpg'
+        mock_avatar_user.avatar = mock_avatar_file
+        mock_filter.return_value.first.return_value = mock_avatar_user
+
+        user.active_organization.has_user = Mock(return_value=True)
+
+        request = api_factory.get('/storage-data/uploaded/', {'filepath': f'{settings.AVATAR_PATH}/avatar.jpg'})
+        request.user = user
+
+        response = view.get(request)
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert 'NGINX' in response.data['detail']
