@@ -182,6 +182,22 @@ export const ExportPage = () => {
           <Input type="hidden" name="exportType" value={currentFormat} />
         </Form>
 
+        {previousExports.length > 0 && (
+          <div className={cn("export-page").elem("previous").toClassName()}>
+            <div className={cn("export-page").elem("previous-title").toClassName()}>
+              Latest export result:
+            </div>
+            <a
+              className={cn("export-page").elem("previous-link").toClassName()}
+              href={previousExports[0].url}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {previousExports[0].name}
+            </a>
+          </div>
+        )}
+
         <div className={cn("export-page").elem("footer").toClassName()}>
           {downloadingMessage && (
             <div className={cn("export-page").elem("status-message").toClassName()}>

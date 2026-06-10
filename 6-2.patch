@@ -1,0 +1,65 @@
+diff --git a/web/apps/labelstudio/src/pages/ExportPage/ExportPage.jsx b/web/apps/labelstudio/src/pages/ExportPage/ExportPage.jsx
+index 0c3a39bb5..15e27ad6a 100644
+--- a/web/apps/labelstudio/src/pages/ExportPage/ExportPage.jsx
++++ b/web/apps/labelstudio/src/pages/ExportPage/ExportPage.jsx
+@@ -182,6 +182,22 @@ export const ExportPage = () => {
+           <Input type="hidden" name="exportType" value={currentFormat} />
+         </Form>
+ 
++        {previousExports.length > 0 && (
++          <div className={cn("export-page").elem("previous").toClassName()}>
++            <div className={cn("export-page").elem("previous-title").toClassName()}>
++              Latest export result:
++            </div>
++            <a
++              className={cn("export-page").elem("previous-link").toClassName()}
++              href={previousExports[0].url}
++              target="_blank"
++              rel="noreferrer"
++            >
++              {previousExports[0].name}
++            </a>
++          </div>
++        )}
++
+         <div className={cn("export-page").elem("footer").toClassName()}>
+           {downloadingMessage && (
+             <div className={cn("export-page").elem("status-message").toClassName()}>
+diff --git a/web/apps/labelstudio/src/pages/ExportPage/ExportPage.prefix.css b/web/apps/labelstudio/src/pages/ExportPage/ExportPage.prefix.css
+index e0f0555e4..c29de54e7 100644
+--- a/web/apps/labelstudio/src/pages/ExportPage/ExportPage.prefix.css
++++ b/web/apps/labelstudio/src/pages/ExportPage/ExportPage.prefix.css
+@@ -39,6 +39,33 @@
+     }
+   }
+ 
++  &__previous {
++    margin: 12px 0 16px;
++    padding: 16px 18px;
++    border-radius: 6px;
++    border: 1px solid var(--color-neutral-border-subtler);
++    background-color: var(--color-neutral-surface);
++    color: var(--color-neutral-content);
++    display: flex;
++    align-items: center;
++    justify-content: space-between;
++  }
++
++  &__previous-title {
++    font-weight: 500;
++    color: var(--color-neutral-content-subtle);
++  }
++
++  &__previous-link {
++    color: var(--color-primary-content);
++    text-decoration: none;
++    font-weight: 500;
++    
++    &:hover {
++      text-decoration: underline;
++    }
++  }
++
+   &__status-message {
+     margin-bottom: 12px;
+     font-size: 14px;
