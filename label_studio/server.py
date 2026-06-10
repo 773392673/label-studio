@@ -29,15 +29,17 @@ LS_PATH = str(pathlib.Path(__file__).parent.absolute())
 DEFAULT_USERNAME = 'default_user@localhost'
 
 
+SAMPLING_MAP = {
+    'sequential': 'SEQUENCE',
+    'uniform': 'UNIFORM',
+    'prediction-score-min': 'UNCERTAINTY',
+}
+
+
 def _setup_env():
     sys.path.insert(0, LS_PATH)
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'label_studio.core.settings.label_studio')
     get_wsgi_application()
-
-
-def _app_run(host, port):
-    http_socket = '{}:{}'.format(host, port)
-    call_command('runserver', '--noreload', http_socket)
 
 
 def _set_sqlite_fix_pragma(sender, connection, **kwargs):
@@ -60,6 +62,34 @@ def _apply_database_migrations():
     if not is_database_synchronized(DEFAULT_DB_ALIAS):
         print('Initializing database..')
         call_command('migrate', '--no-color', verbosity=0)
+
+
+def _resolve_sampling(sampling_value, default_sampling):
+    """Resolve a user-facing sampling string to the matching Project constant.
+
+    :param sampling_value: 'sequential' | 'uniform' | 'prediction-score-min'
+    :param default_sampling: fallback value when sampling_value is unknown
+    """
+    from projects.models import Project
+
+    if sampling_value in SAMPLING_MAP:
+        return getattr(Project, SAMPLING_MAP[sampling_value])
+    return default_sampling
+
+
+def _resolve_internal_port(port_arg, debug):
+    try:
+        internal_port = int(port_arg)
+    except (TypeError, ValueError) as e:
+        logger.warning(f"Can't parse PORT '{port_arg}': {e}; default value 8080 will be used")
+        internal_port = 8080
+
+    return _get_free_port(internal_port, debug)
+
+
+def _app_run(host, port):
+    http_socket = '{}:{}'.format(host, port)
+    call_command('runserver', '--noreload', http_socket)
 
 
 def _get_config(config_path):
@@ -186,19 +216,12 @@ def _init(input_args, config):
     user = _create_user(input_args, config)
 
     if user and input_args.project_name and not _project_exists(input_args.project_name):
-        from projects.models import Project
-
-        sampling_map = {
-            'sequential': Project.SEQUENCE,
-            'uniform': Project.UNIFORM,
-            'prediction-score-min': Project.UNCERTAINTY,
-        }
         _create_project(
             title=input_args.project_name,
             user=user,
             label_config=input_args.label_config,
             description=input_args.project_desc,
-            sampling=sampling_map.get(input_args.sampling, 'sequential'),
+            sampling=_resolve_sampling(input_args.sampling, 'sequential'),
             ml_backends=input_args.ml_backends,
         )
     elif input_args.project_name:
@@ -273,10 +296,8 @@ def _project_exists(project_name):
     return Project.objects.filter(title=project_name).exists()
 
 
-def main():
-    input_args = parse_input_args(sys.argv[1:])
-
-    # setup logging level
+def _apply_env_from_args(input_args):
+    """Propagate CLI args into environment variables used by Django settings."""
     if input_args.log_level:
         os.environ.setdefault('LOG_LEVEL', input_args.log_level)
 
@@ -288,12 +309,110 @@ def main():
         data_dir_path = pathlib.Path(input_args.data_dir)
         os.environ.setdefault('LABEL_STUDIO_BASE_DATA_DIR', str(data_dir_path.absolute()))
 
-    config = _get_config(input_args.config_path)
 
-    # set host name
+def _resolve_host(input_args, config):
     host = input_args.host or config.get('host', '')
     if not get_env('HOST'):
-        os.environ.setdefault('HOST', host)  # it will be passed to settings.HOSTNAME as env var
+        os.environ.setdefault('HOST', host)
+    return host
+
+
+def _migrate_existing_project_if_needed(input_args, config):
+    """Migrate a legacy on-disk project directory into the database on `start`.
+
+    Returns True when the caller should abort the startup sequence because the
+    project could not be resolved.
+    """
+    from projects.models import Project
+
+    from label_studio.core.old_ls_migration import migrate_existing_project
+
+    if input_args.project_name == '.':
+        return False
+
+    if not input_args.project_name or _project_exists(input_args.project_name):
+        return False
+
+    project_path = pathlib.Path(input_args.project_name)
+    if not project_path.exists():
+        print(
+            'Project "{project_name}" not found. '
+            'Did you miss create it first with `label-studio init {project_name}` ?'.format(
+                project_name=input_args.project_name
+            )
+        )
+        return True
+
+    print('Project directory from previous version of label-studio found')
+    print('Start migrating..')
+    project_config = _get_config(project_path / 'config.json')
+    user = _create_user(input_args, project_config)
+    label_config_path = project_path / 'config.xml'
+    project = _create_project(
+        title=input_args.project_name,
+        user=user,
+        label_config=label_config_path,
+        sampling=_resolve_sampling(project_config.get('sampling', 'sequential'), Project.UNIFORM),
+        description=project_config.get('description', ''),
+    )
+    migrate_existing_project(project_path, project, project_config)
+
+    print(
+        Fore.LIGHTYELLOW_EX
+        + '\n*** WARNING! ***\n'
+        + f'Project {input_args.project_name} migrated to Label Studio Database\n'
+        + "YOU DON'T NEED THIS FOLDER ANYMORE"
+        + '\n****************\n'
+        + Fore.WHITE
+    )
+    return False
+
+
+def _auto_create_user_if_configured(input_args, config):
+    if (get_env('USERNAME') and get_env('PASSWORD')) or input_args.username:
+        _create_user(input_args, config)
+
+
+def _start_server(input_args, config, host):
+    from django.conf import settings
+    from label_studio.core.utils.common import start_browser
+
+    _auto_create_user_if_configured(input_args, config)
+
+    cert_file = input_args.cert_file or config.get('cert')
+    key_file = input_args.key_file or config.get('key')
+    if cert_file or key_file:
+        logger.error(
+            "Label Studio doesn't support SSL web server with cert and key.\nUse nginx or other servers for it."
+        )
+        return
+
+    internal_host = input_args.internal_host or config.get('internal_host', '0.0.0.0')  # nosec
+    port_arg = input_args.port or get_env('PORT') or config.get('port', 8080)
+    internal_port = _resolve_internal_port(port_arg, input_args.debug)
+
+    settings.INTERNAL_PORT = str(internal_port)
+
+    url = ('http://localhost:' + str(internal_port)) if not host else host
+    start_browser(url, input_args.no_browser)
+
+    _app_run(host=internal_host, port=internal_port)
+
+
+def _print_version(versions):
+    from label_studio import __version__
+
+    print('\nLabel Studio version:', __version__, '\n')
+    print(json.dumps(versions, indent=4))
+
+
+def main():
+    input_args = parse_input_args(sys.argv[1:])
+
+    _apply_env_from_args(input_args)
+
+    config = _get_config(input_args.config_path)
+    host = _resolve_host(input_args, config)
 
     _setup_env()
     _apply_database_migrations()
@@ -302,21 +421,24 @@ def main():
 
     versions = collect_versions()
 
-    if input_args.command == 'reset_password':
+    command = input_args.command
+
+    # ---- Early-exit (non-server) commands ----
+    if command == 'reset_password':
         _reset_password(input_args)
         return
 
-    if input_args.command == 'shell':
+    if command == 'shell':
         call_command('shell_plus')
         return
 
-    if input_args.command == 'calculate_stats_all_orgs':
+    if command == 'calculate_stats_all_orgs':
         from tasks.functions import calculate_stats_all_orgs
 
         calculate_stats_all_orgs(input_args.from_scratch, redis=True)
         return
 
-    if input_args.command == 'export':
+    if command == 'export':
         from tasks.functions import export_project
 
         try:
@@ -330,117 +452,34 @@ def main():
             logger.exception(f'Failed to export project: {e}')
         else:
             logger.info(f'Project exported successfully: {filename}')
-
         return
 
-    # print version
-    if input_args.command == 'version' or input_args.version:
-        from label_studio import __version__
+    # ---- Informational / side-effect commands ----
+    if command == 'version' or input_args.version:
+        _print_version(versions)
+        return
 
-        print('\nLabel Studio version:', __version__, '\n')
-        print(json.dumps(versions, indent=4))
-
-    # init
-    elif input_args.command == 'user' or getattr(input_args, 'user', None):
+    if command == 'user' or getattr(input_args, 'user', None):
         _get_user_info(input_args.username)
         return
 
-    # init
-    elif input_args.command == 'init' or getattr(input_args, 'init', None):
+    # ---- `init`: may fall through to server start ----
+    init_triggered = command == 'init' or getattr(input_args, 'init', None)
+    if init_triggered:
         _init(input_args, config)
-
         print('')
         print('Label Studio has been successfully initialized.')
-        if input_args.command != 'start' and input_args.project_name:
+        if command != 'start' and input_args.project_name:
             print('Start the server: label-studio start ' + input_args.project_name)
             return
 
-    # start with migrations from old projects, '.' project_name means 'label-studio start' without project name
-    elif input_args.command == 'start' and input_args.project_name != '.':
-        from projects.models import Project
-
-        from label_studio.core.old_ls_migration import migrate_existing_project
-
-        sampling_map = {
-            'sequential': Project.SEQUENCE,
-            'uniform': Project.UNIFORM,
-            'prediction-score-min': Project.UNCERTAINTY,
-        }
-
-        if input_args.project_name and not _project_exists(input_args.project_name):
-            migrated = False
-            project_path = pathlib.Path(input_args.project_name)
-            if project_path.exists():
-                print('Project directory from previous version of label-studio found')
-                print('Start migrating..')
-                config_path = project_path / 'config.json'
-                config = _get_config(config_path)
-                user = _create_user(input_args, config)
-                label_config_path = project_path / 'config.xml'
-                project = _create_project(
-                    title=input_args.project_name,
-                    user=user,
-                    label_config=label_config_path,
-                    sampling=sampling_map.get(config.get('sampling', 'sequential'), Project.UNIFORM),
-                    description=config.get('description', ''),
-                )
-                migrate_existing_project(project_path, project, config)
-                migrated = True
-
-                print(
-                    Fore.LIGHTYELLOW_EX
-                    + '\n*** WARNING! ***\n'
-                    + f'Project {input_args.project_name} migrated to Label Studio Database\n'
-                    + "YOU DON'T NEED THIS FOLDER ANYMORE"
-                    + '\n****************\n'
-                    + Fore.WHITE
-                )
-            if not migrated:
-                print(
-                    'Project "{project_name}" not found. '
-                    'Did you miss create it first with `label-studio init {project_name}` ?'.format(
-                        project_name=input_args.project_name
-                    )
-                )
-                return
-
-    # on `start` command, launch browser if --no-browser is not specified and start label studio server
-    if input_args.command == 'start' or input_args.command is None:
-        from label_studio.core.utils.common import start_browser
-
-        if get_env('USERNAME') and get_env('PASSWORD') or input_args.username:
-            _create_user(input_args, config)
-
-        # ssl not supported from now
-        cert_file = input_args.cert_file or config.get('cert')
-        key_file = input_args.key_file or config.get('key')
-        if cert_file or key_file:
-            logger.error(
-                "Label Studio doesn't support SSL web server with cert and key.\nUse nginx or other servers for it."
-            )
+    # ---- `start`: optional legacy project migration, then launch server ----
+    if command == 'start' and input_args.project_name != '.':
+        if _migrate_existing_project_if_needed(input_args, config):
             return
 
-        # internal port and internal host for server start
-        internal_host = input_args.internal_host or config.get('internal_host', '0.0.0.0')  # nosec
-        internal_port = input_args.port or get_env('PORT') or config.get('port', 8080)
-        try:
-            internal_port = int(internal_port)
-        except ValueError as e:
-            logger.warning(f"Can't parse PORT '{internal_port}': {e}; default value 8080 will be used")
-            internal_port = 8080
-
-        internal_port = _get_free_port(internal_port, input_args.debug)
-
-        # save selected port to global settings
-        from django.conf import settings
-
-        settings.INTERNAL_PORT = str(internal_port)
-
-        # browser
-        url = ('http://localhost:' + str(internal_port)) if not host else host
-        start_browser(url, input_args.no_browser)
-
-        _app_run(host=internal_host, port=internal_port)
+    if command == 'start' or command is None:
+        _start_server(input_args, config, host)
 
 
 if __name__ == '__main__':
