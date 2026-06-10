@@ -1,7 +1,10 @@
 """This file and its contents are licensed under the Apache License 2.0. Please see the included NOTICE for copyright information and LICENSE for a copy of the license."""
 
 import pytest
-from server import _create_user
+import os
+import pathlib
+from unittest.mock import patch
+from server import _create_user, main
 from tests.utils import make_annotation, make_project, make_task
 
 from label_studio.core.argparser import parse_input_args
@@ -47,3 +50,70 @@ def test_user_active_organization_counters():
 
     assert user.active_organization_annotations().count() == 9
     assert user.active_organization_contributed_project_number() == 3
+
+@patch('label_studio.core.utils.common.collect_versions')
+@patch('server._setup_env')
+@patch('server._apply_database_migrations')
+@patch('server._app_run')
+@patch('label_studio.core.utils.common.start_browser')
+def test_cli_version(mock_start_browser, mock_app_run, mock_apply_migrations, mock_setup_env, mock_collect_versions, capsys):
+    mock_collect_versions.return_value = {"version": "1.0.0"}
+    with patch('sys.argv', ['label-studio', 'version']):
+        main()
+    
+    captured = capsys.readouterr()
+    assert 'Label Studio version:' in captured.out
+    
+    mock_setup_env.assert_called_once()
+    mock_apply_migrations.assert_called_once()
+    mock_app_run.assert_not_called()
+    mock_start_browser.assert_not_called()
+
+@patch('label_studio.core.utils.common.collect_versions')
+@patch('server._setup_env')
+@patch('server._apply_database_migrations')
+@patch('server._app_run')
+@patch('label_studio.core.utils.common.start_browser')
+@patch('server.check_port_in_use', return_value=False)
+def test_cli_start(mock_check_port, mock_start_browser, mock_app_run, mock_apply_migrations, mock_setup_env, mock_collect_versions):
+    with patch('sys.argv', ['label-studio', 'start']):
+        main()
+    
+    mock_setup_env.assert_called_once()
+    mock_apply_migrations.assert_called_once()
+    mock_app_run.assert_called_once_with(host='0.0.0.0', port=8080)
+    mock_start_browser.assert_called_once_with('http://localhost:8080', False)
+
+@patch('label_studio.core.utils.common.collect_versions')
+@patch('server._setup_env')
+@patch('server._apply_database_migrations')
+@patch('server._app_run')
+@patch('label_studio.core.utils.common.start_browser')
+@patch('server.check_port_in_use', return_value=False)
+def test_cli_no_command(mock_check_port, mock_start_browser, mock_app_run, mock_apply_migrations, mock_setup_env, mock_collect_versions):
+    with patch('sys.argv', ['label-studio']):
+        main()
+    
+    mock_setup_env.assert_called_once()
+    mock_apply_migrations.assert_called_once()
+    mock_app_run.assert_called_once_with(host='0.0.0.0', port=8080)
+    mock_start_browser.assert_called_once_with('http://localhost:8080', False)
+
+@patch('label_studio.core.utils.common.collect_versions')
+@patch('server._setup_env')
+@patch('server._apply_database_migrations')
+@patch('server._app_run')
+@patch('label_studio.core.utils.common.start_browser')
+@patch('server.check_port_in_use', return_value=False)
+def test_cli_env_args(mock_check_port, mock_start_browser, mock_app_run, mock_apply_migrations, mock_setup_env, mock_collect_versions):
+    with patch('sys.argv', ['label-studio', 'start', '--port', '8081', '--host', 'http://my-host.com:8081', '--data-dir', '/tmp/data', '--no-browser']):
+        main()
+    
+    assert os.environ.get('LABEL_STUDIO_BASE_DATA_DIR') == str(pathlib.Path('/tmp/data').absolute())
+    assert os.environ.get('HOST') == 'http://my-host.com:8081'
+    
+    mock_setup_env.assert_called_once()
+    mock_apply_migrations.assert_called_once()
+    mock_app_run.assert_called_once_with(host='0.0.0.0', port=8081)
+    mock_start_browser.assert_called_once_with('http://my-host.com:8081', True)
+
