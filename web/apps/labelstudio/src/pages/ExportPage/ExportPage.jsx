@@ -1,14 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useHistory } from "react-router";
 import { Button, Badge } from "@humansignal/ui";
-import {
-  IconWarningCircleFilled,
-  IconTerminal,
-  IconCode,
-  IconBook,
-  IconExternal,
-  IconCopyOutline,
-} from "@humansignal/icons";
+import { IconDownload, IconWarningCircleFilled, IconTerminal, IconCode, IconBook, IconExternal, IconCopyOutline } from "@humansignal/icons";
 import { Form, Input } from "../../components/Form";
 import { Modal } from "../../components/Modal/Modal";
 import { Space } from "../../components/Space/Space";
@@ -175,6 +168,8 @@ export const ExportPage = () => {
           onClick={(format) => setCurrentFormat(format.name)}
         />
 
+        <LastExportResult exports={previousExports} />
+
         <ExportLargeProjectWarning taskCount={projectTaskNumber} />
         {exportIssue === "timeout" && <ExportTimeoutGuidance projectId={pageParams.id} exportType={currentFormat} />}
 
@@ -271,6 +266,34 @@ const FormatInfo = ({ availableFormats, selected, onClick }) => {
           rel="noreferrer"
         >
           Repository
+        </a>
+      </div>
+    </div>
+  );
+};
+
+const LastExportResult = ({ exports }) => {
+  if (!exports || exports.length === 0) return null;
+
+  const lastExport = exports[0];
+  const exportName = lastExport.name || "Export file";
+  const exportUrl = lastExport.url || "#";
+
+  return (
+    <div className={cn("export-page").elem("last-export").toClassName()}>
+      <div className={cn("export-page").elem("last-export-icon").toClassName()}>
+        <IconDownload />
+      </div>
+      <div className={cn("export-page").elem("last-export-content").toClassName()}>
+        <div className={cn("export-page").elem("last-export-title").toClassName()}>Last export result</div>
+        <a
+          className={cn("export-page").elem("last-export-link").toClassName()}
+          href={exportUrl}
+          target="_blank"
+          rel="noreferrer"
+          title={exportName}
+        >
+          {exportName}
         </a>
       </div>
     </div>
