@@ -1,0 +1,184 @@
+diff --git a/web/apps/labelstudio/src/pages/ExportPage/ExportPage.jsx b/web/apps/labelstudio/src/pages/ExportPage/ExportPage.jsx
+index 0c3a39bb5..b9e75a473 100644
+--- a/web/apps/labelstudio/src/pages/ExportPage/ExportPage.jsx
++++ b/web/apps/labelstudio/src/pages/ExportPage/ExportPage.jsx
+@@ -8,6 +8,7 @@ import {
+   IconBook,
+   IconExternal,
+   IconCopyOutline,
++  IconInfoOutline,
+ } from "@humansignal/icons";
+ import { Form, Input } from "../../components/Form";
+ import { Modal } from "../../components/Modal/Modal";
+@@ -182,6 +183,8 @@ export const ExportPage = () => {
+           <Input type="hidden" name="exportType" value={currentFormat} />
+         </Form>
+ 
++        {previousExports?.[0] && <RecentExport file={previousExports[0]} />}
++
+         <div className={cn("export-page").elem("footer").toClassName()}>
+           {downloadingMessage && (
+             <div className={cn("export-page").elem("status-message").toClassName()}>
+@@ -303,6 +306,59 @@ const ExportLargeProjectWarning = ({ taskCount }) => {
+   );
+ };
+ 
++const RecentExport = ({ file }) => {
++  const url = file?.url;
++
++  if (!url) return null;
++
++  const fileName = url.split("/").pop() || file?.name || "export";
++
++  const handleDownload = (e) => {
++    e.preventDefault();
++    const link = document.createElement("a");
++
++    link.href = url;
++    link.download = fileName;
++    link.rel = "noopener";
++    link.click();
++  };
++
++  return (
++    <div className={cn("export-page").elem("recent-export").toClassName()}>
++      <div className={cn("export-page").elem("recent-export-header").toClassName()}>
++        <IconInfoOutline className={cn("export-page").elem("recent-export-icon").toClassName()} />
++        <div className={cn("export-page").elem("recent-export-title").toClassName()}>Last export</div>
++      </div>
++      <div className={cn("export-page").elem("recent-export-body").toClassName()}>
++        <div className={cn("export-page").elem("recent-export-filename").toClassName()} title={fileName}>
++          {fileName}
++        </div>
++        <div className={cn("export-page").elem("recent-export-actions").toClassName()}>
++          <a
++            className="no-go"
++            href={url}
++            target="_blank"
++            rel="noreferrer"
++            aria-label="Open last export in a new tab"
++          >
++            Open
++            <IconExternal className={cn("export-page").elem("recent-export-link-icon").toClassName()} />
++          </a>
++          <a
++            className="no-go"
++            href={url}
++            onClick={handleDownload}
++            aria-label="Download the last export file"
++          >
++            Download
++            <IconExternal className={cn("export-page").elem("recent-export-link-icon").toClassName()} />
++          </a>
++        </div>
++      </div>
++    </div>
++  );
++};
++
+ const ExportTimeoutGuidance = ({ projectId, exportType }) => {
+   const cliCommand = `label-studio export ${projectId} ${exportType} --export-path=<output-path>`;
+   const [copied, setCopied] = useState(false);
+diff --git a/web/apps/labelstudio/src/pages/ExportPage/ExportPage.prefix.css b/web/apps/labelstudio/src/pages/ExportPage/ExportPage.prefix.css
+index e0f0555e4..c899800c8 100644
+--- a/web/apps/labelstudio/src/pages/ExportPage/ExportPage.prefix.css
++++ b/web/apps/labelstudio/src/pages/ExportPage/ExportPage.prefix.css
+@@ -47,7 +47,8 @@
+   }
+ 
+   &__warning,
+-  &__timeout {
++  &__timeout,
++  &__recent-export {
+     margin: 12px 0 16px;
+     padding: 16px 18px;
+     border-radius: 6px;
+@@ -55,6 +56,88 @@
+     color: var(--color-neutral-content);
+   }
+ 
++  &__recent-export {
++    background-color: var(--color-neutral-surface-active);
++    border-left: 2px solid var(--color-neutral-border);
++  }
++
++  &__recent-export-header {
++    display: flex;
++    align-items: center;
++    gap: 8px;
++    margin-bottom: 8px;
++  }
++
++  &__recent-export-icon {
++    width: 18px;
++    height: 18px;
++    flex-shrink: 0;
++    color: var(--color-neutral-content-subtle);
++    opacity: 0.7;
++  }
++
++  &__recent-export-title {
++    font-weight: 500;
++    font-size: 14px;
++    color: var(--color-neutral-content);
++    letter-spacing: -0.01em;
++  }
++
++  &__recent-export-body {
++    display: flex;
++    align-items: center;
++    justify-content: space-between;
++    gap: 12px;
++    flex-wrap: wrap;
++    font-size: 14px;
++  }
++
++  &__recent-export-filename {
++    flex: 1;
++    min-width: 0;
++    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
++    font-size: 13px;
++    color: var(--color-neutral-content-subtle);
++    white-space: nowrap;
++    overflow: hidden;
++    text-overflow: ellipsis;
++    padding: 6px 10px;
++    background-color: var(--color-neutral-surface);
++    border: 1px solid var(--color-neutral-border-subtler);
++    border-radius: 4px;
++  }
++
++  &__recent-export-actions {
++    display: flex;
++    align-items: center;
++    gap: 14px;
++    flex-shrink: 0;
++    font-size: 14px;
++
++    & a {
++      color: var(--color-primary-content);
++      text-decoration: none;
++      display: inline-flex;
++      align-items: center;
++      gap: 4px;
++      border-bottom: 1px solid transparent;
++      transition: border-color 0.2s, opacity 0.2s;
++
++      &:hover {
++        opacity: 0.8;
++        border-bottom-color: var(--color-primary-content);
++      }
++    }
++  }
++
++  &__recent-export-link-icon {
++    width: 11px;
++    height: 11px;
++    display: inline-block;
++    vertical-align: middle;
++    opacity: 0.6;
++  }
++
+   &__warning {
+     background-color: var(--color-primary-emphasis-subtle);
+   }

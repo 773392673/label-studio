@@ -8,6 +8,7 @@ import {
   IconBook,
   IconExternal,
   IconCopyOutline,
+  IconInfoOutline,
 } from "@humansignal/icons";
 import { Form, Input } from "../../components/Form";
 import { Modal } from "../../components/Modal/Modal";
@@ -182,6 +183,8 @@ export const ExportPage = () => {
           <Input type="hidden" name="exportType" value={currentFormat} />
         </Form>
 
+        {previousExports?.[0] && <RecentExport file={previousExports[0]} />}
+
         <div className={cn("export-page").elem("footer").toClassName()}>
           {downloadingMessage && (
             <div className={cn("export-page").elem("status-message").toClassName()}>
@@ -298,6 +301,59 @@ const ExportLargeProjectWarning = ({ taskCount }) => {
           Enterprise
         </a>{" "}
         for background exports at scale.
+      </div>
+    </div>
+  );
+};
+
+const RecentExport = ({ file }) => {
+  const url = file?.url;
+
+  if (!url) return null;
+
+  const fileName = url.split("/").pop() || file?.name || "export";
+
+  const handleDownload = (e) => {
+    e.preventDefault();
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = fileName;
+    link.rel = "noopener";
+    link.click();
+  };
+
+  return (
+    <div className={cn("export-page").elem("recent-export").toClassName()}>
+      <div className={cn("export-page").elem("recent-export-header").toClassName()}>
+        <IconInfoOutline className={cn("export-page").elem("recent-export-icon").toClassName()} />
+        <div className={cn("export-page").elem("recent-export-title").toClassName()}>Last export</div>
+      </div>
+      <div className={cn("export-page").elem("recent-export-body").toClassName()}>
+        <div className={cn("export-page").elem("recent-export-filename").toClassName()} title={fileName}>
+          {fileName}
+        </div>
+        <div className={cn("export-page").elem("recent-export-actions").toClassName()}>
+          <a
+            className="no-go"
+            href={url}
+            target="_blank"
+            rel="noreferrer"
+            aria-label="Open last export in a new tab"
+          >
+            Open
+            <IconExternal className={cn("export-page").elem("recent-export-link-icon").toClassName()} />
+          </a>
+          <a
+            className="no-go"
+            href={url}
+            onClick={handleDownload}
+            aria-label="Download the last export file"
+          >
+            Download
+            <IconExternal className={cn("export-page").elem("recent-export-link-icon").toClassName()} />
+          </a>
+        </div>
       </div>
     </div>
   );
