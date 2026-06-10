@@ -1,0 +1,110 @@
+diff --git a/web/apps/labelstudio/src/pages/ExportPage/ExportPage.jsx b/web/apps/labelstudio/src/pages/ExportPage/ExportPage.jsx
+index 0c3a39bb5..dd4dac0ce 100644
+--- a/web/apps/labelstudio/src/pages/ExportPage/ExportPage.jsx
++++ b/web/apps/labelstudio/src/pages/ExportPage/ExportPage.jsx
+@@ -60,6 +60,16 @@ export const ExportPage = () => {
+   /** @type {import('react').RefObject<Form>} */
+   const form = useRef();
+ 
++  const fetchPreviousExports = useCallback(() => {
++    api
++      .callApi("previousExports", {
++        params: { pk: pageParams.id },
++      })
++      .then(({ export_files }) => {
++        setPreviousExports(export_files.slice(0, 1));
++      });
++  }, [api, pageParams.id]);
++
+   const proceedExport = async () => {
+     setExportIssue(null);
+     setDownloading(true);
+@@ -93,6 +103,7 @@ export const ExportPage = () => {
+         const blob = await response.blob();
+ 
+         downloadFile(blob, response.headers.get("filename"));
++        fetchPreviousExports();
+         return;
+       }
+ 
+@@ -113,15 +124,7 @@ export const ExportPage = () => {
+     if (isDefined(pageParams.id)) {
+       let cancelled = false;
+ 
+-      api
+-        .callApi("previousExports", {
+-          params: {
+-            pk: pageParams.id,
+-          },
+-        })
+-        .then(({ export_files }) => {
+-          if (!cancelled) setPreviousExports(export_files.slice(0, 1));
+-        });
++      fetchPreviousExports();
+ 
+       api
+         .callApi("exportFormats", {
+@@ -177,6 +180,7 @@ export const ExportPage = () => {
+ 
+         <ExportLargeProjectWarning taskCount={projectTaskNumber} />
+         {exportIssue === "timeout" && <ExportTimeoutGuidance projectId={pageParams.id} exportType={currentFormat} />}
++        {previousExports.length > 0 && <PreviousExportInfo exportFile={previousExports[0]} />}
+ 
+         <Form ref={form}>
+           <Input type="hidden" name="exportType" value={currentFormat} />
+@@ -280,6 +284,17 @@ const FormatInfo = ({ availableFormats, selected, onClick }) => {
+ ExportPage.path = "/export";
+ ExportPage.modal = true;
+ 
++const PreviousExportInfo = ({ exportFile }) => {
++  const displayName = exportFile?.name?.replace(/^project-\d+-at-/, "").replace(/-/g, ":") ?? exportFile?.name ?? "";
++
++  return (
++    <div className={cn("export-page").elem("previous-export").toClassName()}>
++      <span className={cn("export-page").elem("previous-export-label").toClassName()}>Last export:</span>
++      <a className="no-go" href={exportFile.url}>{displayName}</a>
++    </div>
++  );
++};
++
+ const ExportLargeProjectWarning = ({ taskCount }) => {
+   if (!Number.isFinite(taskCount) || taskCount < LARGE_EXPORT_TASK_THRESHOLD) return null;
+ 
+diff --git a/web/apps/labelstudio/src/pages/ExportPage/ExportPage.prefix.css b/web/apps/labelstudio/src/pages/ExportPage/ExportPage.prefix.css
+index e0f0555e4..309dd0ed9 100644
+--- a/web/apps/labelstudio/src/pages/ExportPage/ExportPage.prefix.css
++++ b/web/apps/labelstudio/src/pages/ExportPage/ExportPage.prefix.css
+@@ -59,6 +59,33 @@
+     background-color: var(--color-primary-emphasis-subtle);
+   }
+ 
++  &__previous-export {
++    margin: 0 0 16px;
++    padding: 12px 16px;
++    border-radius: 6px;
++    border: 1px solid var(--color-neutral-border-subtler);
++    font-size: 14px;
++    color: var(--color-neutral-content);
++    display: flex;
++    align-items: center;
++    gap: 8px;
++    flex-wrap: wrap;
++
++    & a {
++      color: var(--color-primary-content);
++      text-decoration: none;
++      font-weight: 500;
++
++      &:hover {
++        text-decoration: underline;
++      }
++    }
++  }
++
++  &__previous-export-label {
++    color: var(--color-neutral-content-subtle);
++  }
++
+   &__warning-title,
+   &__timeout-title {
+     font-weight: 600;

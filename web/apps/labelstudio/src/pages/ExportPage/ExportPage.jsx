@@ -60,6 +60,16 @@ export const ExportPage = () => {
   /** @type {import('react').RefObject<Form>} */
   const form = useRef();
 
+  const fetchPreviousExports = useCallback(() => {
+    api
+      .callApi("previousExports", {
+        params: { pk: pageParams.id },
+      })
+      .then(({ export_files }) => {
+        setPreviousExports(export_files.slice(0, 1));
+      });
+  }, [api, pageParams.id]);
+
   const proceedExport = async () => {
     setExportIssue(null);
     setDownloading(true);
@@ -93,6 +103,7 @@ export const ExportPage = () => {
         const blob = await response.blob();
 
         downloadFile(blob, response.headers.get("filename"));
+        fetchPreviousExports();
         return;
       }
 
@@ -113,15 +124,7 @@ export const ExportPage = () => {
     if (isDefined(pageParams.id)) {
       let cancelled = false;
 
-      api
-        .callApi("previousExports", {
-          params: {
-            pk: pageParams.id,
-          },
-        })
-        .then(({ export_files }) => {
-          if (!cancelled) setPreviousExports(export_files.slice(0, 1));
-        });
+      fetchPreviousExports();
 
       api
         .callApi("exportFormats", {
@@ -177,6 +180,7 @@ export const ExportPage = () => {
 
         <ExportLargeProjectWarning taskCount={projectTaskNumber} />
         {exportIssue === "timeout" && <ExportTimeoutGuidance projectId={pageParams.id} exportType={currentFormat} />}
+        {previousExports.length > 0 && <PreviousExportInfo exportFile={previousExports[0]} />}
 
         <Form ref={form}>
           <Input type="hidden" name="exportType" value={currentFormat} />
@@ -279,6 +283,17 @@ const FormatInfo = ({ availableFormats, selected, onClick }) => {
 
 ExportPage.path = "/export";
 ExportPage.modal = true;
+
+const PreviousExportInfo = ({ exportFile }) => {
+  const displayName = exportFile?.name?.replace(/^project-\d+-at-/, "").replace(/-/g, ":") ?? exportFile?.name ?? "";
+
+  return (
+    <div className={cn("export-page").elem("previous-export").toClassName()}>
+      <span className={cn("export-page").elem("previous-export-label").toClassName()}>Last export:</span>
+      <a className="no-go" href={exportFile.url}>{displayName}</a>
+    </div>
+  );
+};
 
 const ExportLargeProjectWarning = ({ taskCount }) => {
   if (!Number.isFinite(taskCount) || taskCount < LARGE_EXPORT_TASK_THRESHOLD) return null;
