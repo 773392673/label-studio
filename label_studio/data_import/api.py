@@ -975,7 +975,7 @@ class DownloadStorageData(APIView):
     def get(self, request, *args, **kwargs):
         """Get export files list"""
         filepath = request.GET.get('filepath')
-        if filepath is None:
+        if not filepath:
             return Response(status=status.HTTP_404_NOT_FOUND)
 
         filepath = unquote(request.GET['filepath'])

@@ -1,0 +1,78 @@
+diff --git a/label_studio/data_import/api.py b/label_studio/data_import/api.py
+index 443a7f21d..f686c73c6 100644
+--- a/label_studio/data_import/api.py
++++ b/label_studio/data_import/api.py
+@@ -975,7 +975,7 @@ class DownloadStorageData(APIView):
+     def get(self, request, *args, **kwargs):
+         """Get export files list"""
+         filepath = request.GET.get('filepath')
+-        if filepath is None:
++        if not filepath:
+             return Response(status=status.HTTP_404_NOT_FOUND)
+ 
+         filepath = unquote(request.GET['filepath'])
+diff --git a/label_studio/tests/data_import/test_persistent_storage_data.py b/label_studio/tests/data_import/test_persistent_storage_data.py
+index 9c8954f75..e6db8b04a 100644
+--- a/label_studio/tests/data_import/test_persistent_storage_data.py
++++ b/label_studio/tests/data_import/test_persistent_storage_data.py
+@@ -116,6 +116,14 @@ class TestDownloadStorageData:
+         response = view.get(request)
+         assert response.status_code == status.HTTP_404_NOT_FOUND
+ 
++    def test_empty_filepath_returns_404(self, api_factory, user, view):
++        """Test that empty filepath parameter returns 404"""
++        request = api_factory.get('/storage-data/uploaded/', {'filepath': ''})
++        request.user = user
++
++        response = view.get(request)
++        assert response.status_code == status.HTTP_404_NOT_FOUND
++
+     def test_invalid_filepath_returns_403(self, api_factory, user, view):
+         """Test that filepath not starting with UPLOAD_DIR or AVATAR_PATH returns 403"""
+         request = api_factory.get('/storage-data/uploaded/', {'filepath': 'invalid/path/file.pdf'})
+@@ -334,3 +342,45 @@ class TestDownloadStorageData:
+         view.get(request)
+ 
+         mock_unquote.assert_called_once_with(encoded_filepath)
++
++    @mock.patch('data_import.api.User.objects.filter')
++    @mock.patch('data_import.api.settings.USE_NGINX_FOR_UPLOADS', False)
++    @mock.patch('data_import.api.RangedFileResponse')
++    def test_avatar_user_in_same_organization_success(self, mock_ranged_response, mock_filter, api_factory, user, view):
++        """Test that avatar user from same organization returns success"""
++        mock_avatar_user = Mock()
++        mock_avatar_file = Mock()
++        mock_avatar_file.open = Mock(return_value=Mock())
++        mock_avatar_user.avatar = mock_avatar_file
++        mock_filter.return_value.first.return_value = mock_avatar_user
++        
++        mock_response_instance = Mock()
++        mock_response_instance.__setitem__ = Mock()
++        mock_ranged_response.return_value = mock_response_instance
++
++        # Mock organization access check to return True
++        user.active_organization.has_user = Mock(return_value=True)
++
++        request = api_factory.get('/storage-data/uploaded/', {'filepath': f'{settings.AVATAR_PATH}/avatar.jpg'})
++        request.user = user
++
++        response = view.get(request)
++        assert response == mock_response_instance
++        mock_ranged_response.assert_called_once()
++        user.active_organization.has_user.assert_called_once_with(mock_avatar_user)
++
++    @mock.patch('data_import.api.FileUpload.objects.filter')
++    @mock.patch('data_import.api.settings.USE_NGINX_FOR_UPLOADS', True)
++    def test_nginx_mode_with_local_storage_returns_400(self, mock_filter, api_factory, user, view, mock_file_upload):
++        """Test that NGINX mode with local FileSystemStorage returns 400"""
++        from django.core.files.storage import FileSystemStorage
++        mock_file_upload.file.storage = Mock(spec=FileSystemStorage)
++        mock_filter.return_value.last.return_value = mock_file_upload
++
++        request = api_factory.get('/storage-data/uploaded/', {'filepath': f'{settings.UPLOAD_DIR}/test.pdf'})
++        request.user = user
++
++        response = view.get(request)
++        
++        assert response.status_code == status.HTTP_400_BAD_REQUEST
++        assert 'NGINX mode for uploads is not supported' in response.data['detail']
